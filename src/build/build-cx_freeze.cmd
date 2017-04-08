@@ -9,7 +9,7 @@ set FREEZE=C:\Python%PYVER%%PYW32%\scripts\cxfreeze.py
 set EXCLUDE_MODS=
 set INCLUDE_MODS=
 
-set EXCLUDE_MODS=pyreadline,readline,pdb,opcode,select,optparse,pickle,StringIO,unittest,inspect,headq,__future__,calendar,doctest,tempfile,random,bz2
+set EXCLUDE_MODS=pyreadline,readline,pdb,opcode,select,optparse,pickle,StringIO,unittest,inspect,headq,calendar,doctest,tempfile,random,bz2
 rem set INCLUDE_MODS=encodings.ascii
 set INCLUDE_MODS=
 
