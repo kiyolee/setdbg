@@ -9,8 +9,8 @@ regedit can be tidious though, especially so if needed to locate the
 debugger first.
 
 This utility locates all known debuggers from Microsoft and let you
-enable/disable a set of executables to start the debugger of your
-choice.
+enable/disable a set of executables that starts with the debugger of
+your choice.
 
 *Note*: Need administrative privileges to use.
 
