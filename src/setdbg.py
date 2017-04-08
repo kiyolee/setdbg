@@ -31,18 +31,18 @@ usage 1: %(__file__)s [options] [-e|--enable {exe} ...] [-d|--disable {exe} ...]
 
 options:
     --msvc6, --vc6
-        Use MSVC6 as debugger if available
+        Use MSVC6 as debugger if available.
     --vs(2003|2005|2008|2010|2012|2013|2015|2017)
-        Use Visual Studio as debugger if available
+        Use Visual Studio as debugger if available.
     --windbg, --windbg_64
     --windbg8.0, --windbg8.0_64
     --windbg8.1, --windbg8.1_64
     --windbg10, --windbg10_64
-        Use windbg as debugger if available
+        Use windbg as debugger if available.
     -c {cmdline}, --debugcmd={cmdline}
-        Use {cmdline} to start the debugger
+        Use {cmdline} to start the debugger.
     -h, --help
-        Print this help
+        Print this help.
 
 usage 2: %(__file__)s [-l|--list]
     List all debuggers found.
@@ -89,7 +89,7 @@ if not IS_OS64BIT:
 VS_KEY = r'Software\Microsoft\VisualStudio'
 IFEO_KEY = r'Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
 
-# to prevent serious trouble
+# To prevent serious trouble.
 AVOID_LIST = [
    'cmd.exe',
    'conhost.exe',
@@ -387,7 +387,7 @@ def main():
     IFEOkeys = None
     if disable_list or enable_list:
         try:
-            # both 32 and 64 bit hives are actually symbolic linked.
+            # Both 32 and 64 bit hives are actually symbolic linked.
             if False and IS_OS64BIT:
                 IFEOkeys = [ ( '(32)', winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_WOW64_32KEY | winreg.KEY_READ) ),
                              ( '(64)', winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_WOW64_64KEY | winreg.KEY_READ) ) ]
