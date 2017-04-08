@@ -150,29 +150,51 @@ def get_program_files_directories():
         pf32 = os.environ['ProgramFiles']
     return pf32, pf64
 
-def get_debugger_list():
-    dbglist = {}
-    #
-    # MSVC6 (32-bit only)
-    #
+# MSVC6 (32-bit only)
+def get_msdev_exe():
     h, h2 = None, None
     try:
+        wowkey = winreg.KEY_WOW64_32KEY if IS_OS64BIT else 0
         vs6_key = VS_KEY + r'\6.0'
-        if IS_OS64BIT:
-            wowkey = winreg.KEY_WOW64_32KEY
-        else:
-            wowkey = 0
         #print('#', vs6_key, wowkey)
         h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vs6_key, 0, wowkey | winreg.KEY_READ)
         h2 = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vs6_key + r'\Setup', 0, wowkey | winreg.KEY_READ)
-        v, t = winreg.QueryValueEx(h, 'InstallDir')
+        instdir, t = winreg.QueryValueEx(h, 'InstallDir')
         assert t == winreg.REG_SZ
-        v2, t2 = winreg.QueryValueEx(h2, 'VsCommonDir')
-        assert t2 == winreg.REG_SZ
-        assert v.startswith(v2) and (v2[-1] == os.path.sep or v[len(v2)] == os.path.sep)
-        msdev_exe = os.path.join(v2, 'msdev98', 'bin', 'msdev.exe')
+        commondir, t = winreg.QueryValueEx(h2, 'VsCommonDir')
+        assert t == winreg.REG_SZ
+        assert instdir.startswith(commondir) and (commondir[-1] == os.path.sep or instdir[len(commondir)] == os.path.sep)
+        msdev_exe = os.path.join(commondir, 'msdev98', 'bin', 'msdev.exe')
         if os.path.isfile(msdev_exe):
-            dbglist['msvc6'] = msdev_exe
+            return msdev_exe
+    except WindowsError as err:
+        #print(err, file=sys.stderr)
+        pass
+    finally:
+        if h:
+            winreg.CloseKey(h)
+            del h
+        if h2:
+            winreg.CloseKey(h2)
+            del h2
+    return None
+
+# VS2003|2005|2008|2010|2012|2013|2015|2017 (32-bit only)
+def get_devenv_exe(vs_ver):
+    h, h2 = None, None
+    try:
+        wowkey = winreg.KEY_WOW64_32KEY if IS_OS64BIT else 0
+        vsX_key = VS_KEY + '\\' + vs_ver
+        #print('#', suffix[1:], vsX_key, wowkey)
+        h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vsX_key, 0, wowkey | winreg.KEY_READ)
+        h2 = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vsX_key + r'\Setup\VS', 0, wowkey | winreg.KEY_READ)
+        instdir, t = winreg.QueryValueEx(h, 'InstallDir')
+        assert t == winreg.REG_SZ
+        devenv_exe, t = winreg.QueryValueEx(h2, 'EnvironmentPath')
+        assert t == winreg.REG_SZ
+        assert devenv_exe.startswith(instdir) and (instdir[-1] == os.path.sep or devenv_exe[len(instdir)] == os.path.sep)
+        if os.path.isfile(devenv_exe):
+            return devenv_exe
     except WindowsError as err:
         #print(err, file=sys.stderr)
         pass
@@ -184,45 +206,50 @@ def get_debugger_list():
             winreg.CloseKey(h2)
             del h2
     #
-    # VS2003|2005|2008|2010|2012|2013|2015|2017 (32-bit and 64-bit)
+    # The registry access above is actually no longer valid for VS2017.
+    # VS2017 install does not set EnvironmentPath.
+    # Need to derive location of devenv.exe from installation root.
     #
-    if IS_OS64BIT:
-        regviews = [ ( '', winreg.KEY_WOW64_32KEY ), ( '_64', winreg.KEY_WOW64_64KEY ) ]
-    else:
-        regviews = [ ( '', 0 ) ]
-    for suffix, wowkey in regviews:
-        for vs_ver, vs_id in [ ( '7.0', 'vs2003' ),
-                               ( '7.1', 'vs2003' ),
-                               ( '8.0', 'vs2005' ),
-                               ( '9.0', 'vs2008' ),
-                               ( '10.0', 'vs2010' ),
-                               ( '11.0', 'vs2012' ),
-                               ( '12.0', 'vs2013' ),
-                               ( '14.0', 'vs2015' ),
-                               ( '15.0', 'vs2017' ),
-                               ]:
-            h, h2 = None, None
-            try:
-                vsX_key = VS_KEY + '\\' + vs_ver
-                #print('#', suffix[1:], vsX_key, wowkey)
-                h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vsX_key, 0, wowkey | winreg.KEY_READ)
-                h2 = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, vsX_key + r'\Setup\VS', 0, wowkey | winreg.KEY_READ)
-                v, t = winreg.QueryValueEx(h, 'InstallDir')
-                assert t == winreg.REG_SZ
-                devenv_exe, t2 = winreg.QueryValueEx(h2, 'EnvironmentPath')
-                assert t2 == winreg.REG_SZ
-                assert devenv_exe.startswith(v) and (v[-1] == os.path.sep or devenv_exe[len(v)] == os.path.sep)
-                dbglist[vs_id + suffix] = devenv_exe
-            except WindowsError as err:
-                #print(err, file=sys.stderr)
-                pass
-            finally:
-                if h:
-                    winreg.CloseKey(h)
-                    del h
-                if h2:
-                    winreg.CloseKey(h2)
-                    del h2
+    try:
+        h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, VS_KEY + r'\SxS\VS7', 0, wowkey | winreg.KEY_READ)
+        instdir, t = winreg.QueryValueEx(h, vs_ver)
+        assert t == winreg.REG_SZ
+        devenv_exe = os.path.join(instdir, 'Common7', 'IDE', 'devenv.exe')
+        if os.path.isfile(devenv_exe):
+            return devenv_exe
+    except WindowsError as err:
+        #print(err, file=sys.stderr)
+        pass
+    finally:
+        if h:
+            winreg.CloseKey(h)
+            del h
+    return None
+
+def get_debugger_list():
+    dbglist = {}
+    #
+    # MSVC6 (32-bit only)
+    #
+    msdev_exe = get_msdev_exe()
+    if msdev_exe:
+        dbglist['msvc6'] = msdev_exe
+    #
+    # VS2003|2005|2008|2010|2012|2013|2015|2017 (32-bit only)
+    #
+    for vs_ver, vs_id in [ ( '7.0', 'vs2003' ),
+                           ( '7.1', 'vs2003' ),
+                           ( '8.0', 'vs2005' ),
+                           ( '9.0', 'vs2008' ),
+                           ( '10.0', 'vs2010' ),
+                           ( '11.0', 'vs2012' ),
+                           ( '12.0', 'vs2013' ),
+                           ( '14.0', 'vs2015' ),
+                           ( '15.0', 'vs2017' ),
+                           ]:
+        devenv_exe = get_devenv_exe(vs_ver)
+        if devenv_exe:
+            dbglist[vs_id] = devenv_exe
     #
     pf32, pf64 = get_program_files_directories()
     #
@@ -259,7 +286,7 @@ def get_debugger_list():
 def print_debuggers(debuggers):
     dk = list(debuggers.keys())
     if dk:
-        print('available debugger(s):')
+        print('Available %s:' % ('debuggers' if len(dk) > 1 else 'debugger'))
         defdbg = default_debugger(debuggers)
         def dbgkey(k):
             if k == defdbg:
@@ -272,7 +299,7 @@ def print_debuggers(debuggers):
         for k, krem in kl:
             print('%-*s%s' % ( ml, krem, debuggers[k] ))
     else:
-        print('no debugger found.')
+        print('No debugger found.')
 
 def add_exe(exelist, arg):
     for e in arg.split(','):
@@ -370,14 +397,23 @@ def main():
             dbgexe = debuggers[dbgsel]
             p, e = os.path.split(dbgexe)
             e = e.lower()
+            # Mysteriously need the corresponding .com executable to work.
             if e == 'devenv.exe':
-                debugcmd = '"' + os.path.join(p, 'devenv.com') + '" /debugexe'
+                devenv_com = os.path.join(p, 'devenv.com')
+                if os.path.isfile(devenv_com):
+                    debugcmd = '"' + devenv_com + '" /debugexe'
+                else:
+                    debugcmd = '"' + dbgexe + '" /debugexe'
             elif e == 'msdev.exe':
-                debugcmd = '"' + os.path.join(p, 'msdev.com') + '"'
+                msdev_com = os.path.join(p, 'msdev.com')
+                if os.path.isfile(msdev_com):
+                    debugcmd = '"' + msdev_com + '"'
+                else:
+                    debugcmd = '"' + dbgexe + '"'
             else:
                 debugcmd = '"' + dbgexe + '"'
         else:
-            print('debugger selection %s not found.' % dbgsel)
+            print('Debugger selection %s not found.' % dbgsel)
             print_debuggers(debuggers)
             return 1
 
