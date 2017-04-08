@@ -210,6 +210,7 @@ def get_devenv_exe(vs_ver):
     # VS2017 install does not set EnvironmentPath.
     # Need to derive location of devenv.exe from installation root.
     #
+    h = None
     try:
         h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, VS_KEY + r'\SxS\VS7', 0, wowkey | winreg.KEY_READ)
         instdir, t = winreg.QueryValueEx(h, vs_ver)
