@@ -420,64 +420,58 @@ def main():
     #print('# enable_list:', enable_list)
     #print('# disable_list:', disable_list)
 
-    IFEOkeys = None
+    hIFEO = None
     if disable_list or enable_list:
         try:
-            # Both 32 and 64 bit hives are actually symbolic linked.
-            if False and IS_OS64BIT:
-                IFEOkeys = [ ( '(32)', winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_WOW64_32KEY | winreg.KEY_READ) ),
-                             ( '(64)', winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_WOW64_64KEY | winreg.KEY_READ) ) ]
-            else:
-                IFEOkeys = [ ( '', winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_READ) ) ]
+            # Both 32 and 64 bit hives are symbolic linked.
+            hIFEO = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, IFEO_KEY, 0, winreg.KEY_READ)
         except WindowsError as err:
-            IFEOkeys = None
+            hIFEO = None
 
-    if IFEOkeys:
+    if hIFEO:
         if disable_list:
             for d in disable_list:
-                for remarks, hIFEO in IFEOkeys:
-                    h = None
-                    try:
-                        h = winreg.OpenKey(hIFEO, d, 0, winreg.KEY_READ | winreg.KEY_WRITE)
-                        try:
-                            winreg.DeleteValue(h, 'Debugger')
-                        except WindowsError as err:
-                            pass
-                        print('disabled: %s%s' % ( d, remarks ))
-                    except WindowsError as err:
-                        pass
-                    finally:
-                        if h:
-                            is_empty = key_is_empty(h)
-                            winreg.CloseKey(h)
-                            del h
-                            if is_empty:
-                                #print('# %s is empty' % d)
-                                try:
-                                    winreg.DeleteKey(hIFEO, d)
-                                except WindowsError as err:
-                                    #print(err, file=sys.stderr)
-                                    pass
+                h = None
+                try:
+                    h = winreg.OpenKey(hIFEO, d, 0, winreg.KEY_READ | winreg.KEY_WRITE)
+                    winreg.DeleteValue(h, 'Debugger')
+                    print('disabled:', d)
+                except WindowsError as err:
+                    if not h and err.errno == 2:
+                        print('already disabled:', d)
+                    else:
+                        print(err)
+                        print('failed to disable:', d)
+                finally:
+                    if h:
+                        is_empty = key_is_empty(h)
+                        winreg.CloseKey(h)
+                        del h
+                        if is_empty:
+                            #print('# %s is empty' % d)
+                            try:
+                                winreg.DeleteKey(hIFEO, d)
+                            except WindowsError as err:
+                                #print(err, file=sys.stderr)
+                                pass
 
         if enable_list:
             print('# debugcmd:', debugcmd)
             for e in enable_list:
-                for remarks, hIFEO in IFEOkeys:
-                    h = None
-                    try:
-                        h = winreg.CreateKey(hIFEO, e)
-                        winreg.SetValueEx(h, 'Debugger', 0, winreg.REG_SZ, debugcmd)
-                        print('enabled: %s%s' % ( e, remarks ))
-                    except WindowsError as err:
-                        pass
-                    finally:
-                        if h:
-                            winreg.CloseKey(h)
-                            del h
+                h = None
+                try:
+                    h = winreg.CreateKey(hIFEO, e)
+                    winreg.SetValueEx(h, 'Debugger', 0, winreg.REG_SZ, debugcmd)
+                    print('enabled:', e)
+                except WindowsError as err:
+                    print(err)
+                    print('failed to enable:', e)
+                finally:
+                    if h:
+                        winreg.CloseKey(h)
+                        del h
 
-        for remarks, hIFEO in IFEOkeys:
-            winreg.CloseKey(hIFEO)
-        del IFEOkeys
+        winreg.CloseKey(hIFEO)
 
     return 0
 
