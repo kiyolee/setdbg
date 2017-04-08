@@ -1,6 +1,6 @@
 # setdbg
 
-A handy utility to set auto start-up debugger.
+This is a handy utility to set automatic start-up debugger.
 
 For Windows, registry setting "Image File Execution Options" is a well
 known method to start some debugger automatically whenever certiain
