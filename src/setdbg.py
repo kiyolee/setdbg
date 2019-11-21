@@ -48,8 +48,6 @@ usage 2: %(__file__)s [-l|--list]
     List all debuggers found.
 """
 
-from __future__ import print_function
-
 import sys
 assert sys.platform == 'win32'
 
