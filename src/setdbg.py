@@ -4,7 +4,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2017 Kelvin Lee
+# Copyright (c) 2017-2020 Kelvin Lee
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@ usage 1: %(__file__)s [options] [-e|--enable {exe} ...] [-d|--disable {exe} ...]
 options:
     --msvc6, --vc6
         Use MSVC6 as debugger if available.
-    --vs(2003|2005|2008|2010|2012|2013|2015|2017)
+    --vs(2003|2005|2008|2010|2012|2013|2015|2017|2019)
         Use Visual Studio as debugger if available.
     --windbg, --windbg_64
     --windbg8.0, --windbg8.0_64
@@ -52,6 +52,7 @@ import sys
 assert sys.platform == 'win32'
 
 import os
+import subprocess
 
 try:
     import winreg
@@ -111,7 +112,7 @@ AVOID_LIST = [
    'winlogon.exe',
    ]
 
-VS_LIST = [ ('vs' + v) for v in [ '2017', '2015', '2013', '2012',
+VS_LIST = [ ('vs' + v) for v in [ '2019', '2017', '2015', '2013', '2012',
                                   '2010', '2008', '2005', '2003' ] ]
 #print('#', VS_LIST)
 
@@ -177,7 +178,7 @@ def get_msdev_exe():
             del h2
     return None
 
-# VS2003|2005|2008|2010|2012|2013|2015|2017 (32-bit only)
+# VS2003|2005|2008|2010|2012|2013|2015 (32-bit only)
 def get_devenv_exe(vs_ver):
     h, h2 = None, None
     try:
@@ -203,27 +204,46 @@ def get_devenv_exe(vs_ver):
         if h2:
             winreg.CloseKey(h2)
             del h2
-    #
-    # The registry access above is actually no longer valid for VS2017.
-    # VS2017 install does not set EnvironmentPath.
-    # Need to derive location of devenv.exe from installation root.
-    #
-    h = None
-    try:
-        h = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, VS_KEY + r'\SxS\VS7', 0, wowkey | winreg.KEY_READ)
-        instdir, t = winreg.QueryValueEx(h, vs_ver)
-        assert t == winreg.REG_SZ
-        devenv_exe = os.path.join(instdir, 'Common7', 'IDE', 'devenv.exe')
-        if os.path.isfile(devenv_exe):
-            return devenv_exe
-    except WindowsError as err:
-        #print(err, file=sys.stderr)
-        pass
-    finally:
-        if h:
-            winreg.CloseKey(h)
-            del h
     return None
+
+def vswhere_get_devenv_exe(dbglist, pf32, pf64):
+    vswhere = os.path.join(pf32, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+    if not os.path.exists(vswhere):
+        vswhere = os.path.join(pf64, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+        if not os.path.exists(vswhere):
+            return
+    cmdp = subprocess.Popen([ vswhere, '-nologo' ], stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    sout, serr = cmdp.communicate()
+    if cmdp.returncode != 0 or serr:
+        return
+    it = iter(sout.decode('utf-8').split('\r\n'))
+    try:
+        while True:
+            s = next(it).split(': ', 1)
+            assert len(s) == 2
+            if s[0] == 'instanceId':
+                pp, pv = '', ''
+                try:
+                    while True:
+                        s = next(it)
+                        if not s: break
+                        s = s.split(': ', 1)
+                        assert len(s) == 2
+                        if s[0] == 'productPath':
+                            pp = s[1]
+                        elif s[0] == 'catalog_productLineVersion':
+                            pv = s[1]
+                except StopIteration:
+                    pass
+                if pp and pv:
+                    pv = 'vs' + pv
+                    for i in range(1, 99):
+                        vs_id = pv if i == 1 else pv + ('_%d' % i)
+                        if not vs_id in dbglist:
+                            dbglist[vs_id] = pp
+                            break
+    except StopIteration:
+        pass
 
 def get_debugger_list():
     dbglist = {}
@@ -234,7 +254,7 @@ def get_debugger_list():
     if msdev_exe:
         dbglist['msvc6'] = msdev_exe
     #
-    # VS2003|2005|2008|2010|2012|2013|2015|2017 (32-bit only)
+    # VS2003|2005|2008|2010|2012|2013|2015 (32-bit only)
     #
     for vs_ver, vs_id in [ ( '7.0', 'vs2003' ),
                            ( '7.1', 'vs2003' ),
@@ -244,13 +264,16 @@ def get_debugger_list():
                            ( '11.0', 'vs2012' ),
                            ( '12.0', 'vs2013' ),
                            ( '14.0', 'vs2015' ),
-                           ( '15.0', 'vs2017' ),
                            ]:
         devenv_exe = get_devenv_exe(vs_ver)
         if devenv_exe:
             dbglist[vs_id] = devenv_exe
     #
     pf32, pf64 = get_program_files_directories()
+    #
+    # VS2017 or later (32-bit only)
+    #
+    vswhere_get_devenv_exe(dbglist, pf32, pf64)
     #
     # windbg for Windows 8 or later (32-bit and 64-bit)
     #

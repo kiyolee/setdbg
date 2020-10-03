@@ -1,10 +1,10 @@
 setlocal
 
-set PYVER=36
+set PYVER=38
 set PYW32=-32
 
 set PY=C:\Python%PYVER%%PYW32%\python.exe
-set FREEZE=C:\Python%PYVER%%PYW32%\scripts\cxfreeze.py
+set FREEZE=C:\Python%PYVER%%PYW32%\scripts\cxfreeze.exe
 
 set EXCLUDE_MODS=
 set INCLUDE_MODS=
@@ -19,6 +19,6 @@ if defined INCLUDE_MODS set INCLUDE_OPTS=--include-modules=%INCLUDE_MODS%
 set APP_NAME=setdbg
 set DIST_DIR=%APP_NAME%.cxdist.%PYVER%
 
-%PY% %FREEZE% --target-dir=%DIST_DIR% %EXCLUDE_OPTS% %INCLUDE_OPTS% ..\%APP_NAME%.py
+%FREEZE% --target-dir=%DIST_DIR% %EXCLUDE_OPTS% %INCLUDE_OPTS% ..\%APP_NAME%.py
 
 endlocal
