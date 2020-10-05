@@ -56,8 +56,7 @@ import subprocess
 import winreg
 
 # __file__ is not defined after compiled with cx_Freeze
-if '__file__' not in globals():
-    __file__ = sys.argv[0]
+if '__file__' not in globals(): __file__ = sys.argv[0]
 
 __program__ = os.path.basename(__file__)
 
@@ -78,10 +77,8 @@ if not IS_OS64BIT:
     IS_OS64BIT = IS_WOW64 = _is_wow64()
     del _is_wow64
     del ctypes
-
 #print('# IS_OS64BIT=' + str(IS_OS64BIT) + ' IS_WOW64=' + str(IS_WOW64))
 
-VS_KEY = r'Software\Microsoft\VisualStudio'
 IFEO_KEY = r'Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
 
 # To prevent serious trouble.
@@ -108,24 +105,6 @@ AVOID_LIST = [
    'winlogon.exe',
    ]
 
-VS_LIST = [ ('vs' + v) for v in [ '2019', '2017', '2015', '2013', '2012',
-                                  '2010', '2008', '2005', '2003' ] ]
-#print('#', VS_LIST)
-
-from itertools import product
-WINDBG_LIST = [ ('windbg' + v + a) for v, a in product([ '10', '8.1', '8.0', '' ], [ '', '_64' ]) ]
-#print('#', WINDBG_LIST)
-
-def default_debugger(debuggers):
-    for dbg in VS_LIST + [ 'msvc6' ] + WINDBG_LIST:
-        if dbg in debuggers:
-            return dbg
-    try:
-        return debuggers.keys()[0]
-    except IndexError:
-        pass
-    return ''
-
 def get_program_files_directories():
     pf64 = ''
     if IS_OS64BIT:
@@ -144,6 +123,8 @@ def get_program_files_directories():
     else:
         pf32 = os.environ['ProgramFiles']
     return pf32, pf64
+
+VS_KEY = r'Software\Microsoft\VisualStudio'
 
 # MSVC6 (32-bit only)
 def get_msdev_exe():
@@ -247,8 +228,7 @@ def get_debugger_list():
     # MSVC6 (32-bit only)
     #
     msdev_exe = get_msdev_exe()
-    if msdev_exe:
-        dbglist['msvc6'] = msdev_exe
+    if msdev_exe: dbglist['msvc6'] = msdev_exe
     #
     # VS2003|2005|2008|2010|2012|2013|2015 (32-bit only)
     #
@@ -262,8 +242,7 @@ def get_debugger_list():
                            ( '14.0', 'vs2015' ),
                            ]:
         devenv_exe = get_devenv_exe(vs_ver)
-        if devenv_exe:
-            dbglist[vs_id] = devenv_exe
+        if devenv_exe: dbglist[vs_id] = devenv_exe
     #
     pf32, pf64 = get_program_files_directories()
     #
@@ -301,16 +280,38 @@ def get_debugger_list():
                 break
     return dbglist
 
-def print_debuggers(debuggers):
+def get_dbg_id_prioritized(debuggers):
+    dbg_ids = list(debuggers.keys())
+    def _dbg_id_to_key(dbg_id):
+        x = 0 if dbg_id.startswith('vs') else ( -1 if dbg_id.startswith('windbg') else -2 )
+        if x == 0 and '_' in dbg_id:
+            s = dbg_id.rsplit('_', 1)
+            try:
+                return x, s[0], 0, -int(s[1])
+            except ValueError:
+                pass
+        elif x == -1:
+            if dbg_id.endswith('_64'):
+                return x, dbg_id[:-3], 0, 0
+            else:
+                return x, dbg_id, -1, 0
+        return x, dbg_id, 0, 0
+    dbg_ids.sort(key=_dbg_id_to_key, reverse=True)
+    return dbg_ids
+
+def default_debugger(debuggers):
+    try:
+        return get_dbg_id_prioritized(debuggers)[0]
+    except IndexError:
+        pass
+    return ''
+
+def print_debuggers(debuggers, dbgdef):
     dk = list(debuggers.keys())
     if dk:
         print('Available %s:' % ('debuggers' if len(dk) > 1 else 'debugger'))
-        defdbg = default_debugger(debuggers)
         def dbgkey(k):
-            if k == defdbg:
-                return k + '(default)'
-            else:
-                return k
+            return k + '(default)' if k == dbgdef else k
         dk.sort()
         kl = [ ( k, dbgkey(k) ) for k in dk ]
         ml = len(max(kl, key=lambda k: len(k[1]))[1]) + 1
@@ -348,6 +349,14 @@ def main():
         print(__doc__)
         return 255
 
+    debuggers = get_debugger_list()
+    #print('# debuggers:', debuggers)
+    dbgdef = default_debugger(debuggers)
+
+    dbg_opts = list(debuggers.keys())
+    dbg_opts += [ i[2:] for i in dbg_opts if i.startswith('vs') ]
+    if 'msvc6' in debuggers: dbg_opts += [ 'vc6' ]
+
     enable_list = []
     disable_list = []
     debugcmd = ''
@@ -360,10 +369,8 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], 'e:d:c:lh',
                                     [ 'enable=', 'disable=',
                                       'debugcmd=',
-                                      'msvc6', 'vc6',
-                                      'list',
-                                      'help',
-                                      ] + VS_LIST + WINDBG_LIST)
+                                      'list', 'help',
+                                      ] + dbg_opts)
     except getopt.error as err:
         print(err, file=sys.stderr)
         return 255
@@ -378,12 +385,16 @@ def main():
         elif opt in ( '-c', '--debugcmd' ):
             debugcmd = val
         elif opt in ( '--msvc6', '--vc6' ):
+            assert not dbgsel
             dbgsel = 'msvc6'
-        elif (opt.startswith('--')
-                and (opt[2:] in VS_LIST or opt[2:] in WINDBG_LIST)):
+        elif (opt.startswith('--') and (opt[2:] in debuggers)):
+            assert not dbgsel
             dbgsel = opt[2:]
+        elif (opt.startswith('--') and ('vs' + opt[2:] in debuggers)):
+            assert not dbgsel
+            dbgsel = 'vs' + opt[2:]
         elif opt in ( '-l', '--list' ):
-            print_debuggers(get_debugger_list())
+            print_debuggers(debuggers, dbgdef)
             return 1
         elif opt in ( '-h', '--help' ):
             print(__doc__)
@@ -401,8 +412,6 @@ def main():
                 add_exe(disable_list, a)
 
     if enable_list and not debugcmd:
-        debuggers = get_debugger_list()
-        #print('# debuggers:', debuggers)
         if dbgsel:
             if not dbgsel in debuggers:
                 if dbgsel.endswith('_64'):
@@ -410,7 +419,7 @@ def main():
                 else:
                     if dbgsel + '_64' in debuggers: dbgsel += '_64'
         else:
-            dbgsel = default_debugger(debuggers)
+            dbgsel = dbgdef
         if dbgsel in debuggers:
             dbgexe = debuggers[dbgsel]
             p, e = os.path.split(dbgexe)
@@ -432,7 +441,7 @@ def main():
                 debugcmd = '"' + dbgexe + '"'
         else:
             print('Debugger selection %s not found.' % dbgsel)
-            print_debuggers(debuggers)
+            print_debuggers(debuggers, dbgdef)
             return 1
 
     #print('# enable_list:', enable_list)
