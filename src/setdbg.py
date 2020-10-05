@@ -33,6 +33,7 @@ options:
     --msvc6, --vc6
         Use MSVC6 as debugger if available.
     --vs(2003|2005|2008|2010|2012|2013|2015|2017|2019)
+    --(2003|2005|2008|2010|2012|2013|2015|2017|2019)
         Use Visual Studio as debugger if available.
     --windbg, --windbg_64
     --windbg8.0, --windbg8.0_64
