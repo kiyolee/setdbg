@@ -53,11 +53,7 @@ assert sys.platform == 'win32'
 
 import os
 import subprocess
-
-try:
-    import winreg
-except:
-    import _winreg as winreg # Python 2
+import winreg
 
 # __file__ is not defined after compiled with cx_Freeze
 if '__file__' not in globals():
