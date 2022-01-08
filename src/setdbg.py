@@ -4,7 +4,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2017-2020 Kelvin Lee
+# Copyright (c) 2017-2022 Kelvin Lee
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,8 +32,8 @@ usage 1: %(__file__)s [options] [-e|--enable {exe} ...] [-d|--disable {exe} ...]
 options:
     --msvc6, --vc6
         Use MSVC6 as debugger if available.
-    --vs(2003|2005|2008|2010|2012|2013|2015|2017|2019)
-    --(2003|2005|2008|2010|2012|2013|2015|2017|2019)
+    --vs(2003|2005|2008|2010|2012|2013|2015|2017|2019|2022)
+    --(2003|2005|2008|2010|2012|2013|2015|2017|2019|2022)
         Use Visual Studio as debugger if available.
     --windbg, --windbg_64
     --windbg8.0, --windbg8.0_64
@@ -247,7 +247,8 @@ def get_debugger_list():
     #
     pf32, pf64 = get_program_files_directories()
     #
-    # VS2017 or later (32-bit only)
+    # VS2017 or VS2019 (32-bit only)
+    # VS2022 or later (64-bit only)
     #
     vswhere_get_devenv_exe(dbglist, pf32, pf64)
     #
